@@ -1,0 +1,6 @@
+{
+  "watch": ["src", "../shared"],
+  "ext": "ts,json",
+  "ignore": ["dist"],
+  "exec": "ts-node src/index.ts"
+}
