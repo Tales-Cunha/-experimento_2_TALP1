@@ -14,6 +14,10 @@ app.use(
 );
 app.use(express.json());
 
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server listening on port ${port}`);
 });
