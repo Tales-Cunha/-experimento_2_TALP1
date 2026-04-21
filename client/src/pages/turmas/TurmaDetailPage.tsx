@@ -1,20 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { METAS, useAvaliacoes } from '../../hooks/useAvaliacoes';
 import { useTurmas } from '../../hooks/useTurmas';
+import type { Avaliacao, Conceito } from '../../services/avaliacoesApi';
 import type { AlunoResumo, Turma } from '../../services/turmasApi';
+
+const conceitoColor: Record<Conceito, string> = {
+  MANA: '#fde8e8',
+  MPA: '#fff9db',
+  MA: '#e6f7e6',
+};
 
 export function TurmaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getTurmaById, loadAlunosResumo, enrollAluno, removeAluno, error } = useTurmas();
+  const {
+    loadAvaliacoesByTurma,
+    setConceito,
+    saving: savingAvaliacao,
+    error: avaliacaoError,
+  } = useAvaliacoes();
 
   const [turma, setTurma] = useState<Turma | null>(null);
+  const [avaliacoesDaTurma, setAvaliacoesDaTurma] = useState<Avaliacao[]>([]);
   const [todosAlunos, setTodosAlunos] = useState<AlunoResumo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [selectedAlunoId, setSelectedAlunoId] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -22,18 +38,22 @@ export function TurmaDetailPage() {
       return;
     }
 
+    const turmaId = id;
+
     async function loadData() {
       setLoading(true);
       setLocalError(null);
 
       try {
-        const [turmaResponse, alunosResponse] = await Promise.all([
-          getTurmaById(id),
+        const [turmaResponse, alunosResponse, avaliacoesResponse] = await Promise.all([
+          getTurmaById(turmaId),
           loadAlunosResumo(),
+          loadAvaliacoesByTurma(turmaId),
         ]);
 
         setTurma(turmaResponse);
         setTodosAlunos(alunosResponse);
+        setAvaliacoesDaTurma(avaliacoesResponse);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Falha ao carregar detalhes da turma.';
         setLocalError(message);
@@ -43,7 +63,35 @@ export function TurmaDetailPage() {
     }
 
     void loadData();
-  }, [id, navigate, getTurmaById, loadAlunosResumo]);
+  }, [id, navigate, getTurmaById, loadAlunosResumo, loadAvaliacoesByTurma]);
+
+  function getConceito(alunoId: string, meta: (typeof METAS)[number]): Conceito | null {
+    const avaliacao = avaliacoesDaTurma
+      .filter((item) => item.alunoId === alunoId && item.meta === meta)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+
+    return avaliacao ? avaliacao.conceito : null;
+  }
+
+  async function handleSetConceito(alunoId: string, meta: (typeof METAS)[number], conceito: Conceito) {
+    if (!id) return;
+
+    try {
+      const saved = await setConceito({ alunoId, turmaId: id, meta, conceito });
+      setAvaliacoesDaTurma((prev) => {
+        const existingIndex = prev.findIndex(a => a.alunoId === saved.alunoId && a.meta === saved.meta);
+        if (existingIndex >= 0) {
+          const clone = [...prev];
+          clone[existingIndex] = saved;
+          return clone;
+        }
+        return [...prev, saved];
+      });
+      setEditingCell(null);
+    } catch {
+      // Error is handled by hook
+    }
+  }
 
   const alunosDisponiveis = useMemo(() => {
     if (!turma) {
@@ -228,9 +276,111 @@ export function TurmaDetailPage() {
         </div>
       </section>
 
-      {(localError || error) && (
+      <section style={{ marginTop: '1.5rem' }}>
+        <h2 style={{ marginTop: 0 }}>Tabela de Avaliações da Turma</h2>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '52rem' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
+                  Aluno
+                </th>
+                {METAS.map((meta) => (
+                  <th
+                    key={meta}
+                    style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}
+                  >
+                    {meta}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {turma.alunos.length === 0 ? (
+                <tr>
+                  <td colSpan={1 + METAS.length} style={{ padding: '0.75rem' }}>
+                    Nenhum aluno matriculado nesta turma.
+                  </td>
+                </tr>
+              ) : (
+                turma.alunos.map((aluno) => (
+                  <tr key={aluno.id}>
+                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'grid' }}>
+                        <strong>{aluno.nome}</strong>
+                        <small>{aluno.cpf}</small>
+                      </div>
+                    </td>
+                    {METAS.map((meta) => {
+                      const conceito = getConceito(aluno.id, meta);
+                      const cellKey = `${aluno.id}::${meta}`;
+                      const isEditing = editingCell === cellKey;
+
+                      return (
+                        <td
+                          key={cellKey}
+                          style={{
+                            padding: '0.5rem',
+                            borderBottom: '1px solid #f0f0f0',
+                            backgroundColor: conceito ? conceitoColor[conceito] : '#ffffff',
+                          }}
+                        >
+                          {isEditing ? (
+                            <select
+                              autoFocus
+                              defaultValue={conceito ?? ''}
+                              onBlur={() => setEditingCell(null)}
+                              onChange={(event) => {
+                                const value = event.target.value as Conceito | '';
+                                if (value) {
+                                  void handleSetConceito(aluno.id, meta, value);
+                                } else {
+                                  setEditingCell(null);
+                                }
+                              }}
+                              disabled={savingAvaliacao}
+                            >
+                              <option value="">Selecione</option>
+                              {['MANA', 'MPA', 'MA'].map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setEditingCell(cellKey)}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                padding: 0,
+                                cursor: 'pointer',
+                                font: 'inherit',
+                                width: '100%',
+                                textAlign: 'left',
+                                height: '1.5rem'
+                              }}
+                              title="Clique para editar"
+                            >
+                              {conceito ?? '—'}
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {(localError || error || avaliacaoError) && (
         <p role="alert" style={{ color: '#b00020', marginTop: '1rem' }}>
-          Erro: {localError ?? error}
+          Erro: {localError ?? error ?? avaliacaoError}
         </p>
       )}
     </main>
