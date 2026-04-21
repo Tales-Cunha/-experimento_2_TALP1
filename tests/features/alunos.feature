@@ -1,4 +1,4 @@
-# language: english
+# language: en
 
 Feature: Student management
   As an instructor
