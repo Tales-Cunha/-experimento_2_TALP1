@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 
 import { alunosRouter } from './routes/alunos';
+import { turmasRouter } from './routes/turmas';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);
@@ -21,6 +22,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/alunos', alunosRouter);
+app.use('/api/turmas', turmasRouter);
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server listening on port ${port}`);
