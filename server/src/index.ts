@@ -4,10 +4,13 @@ import express from 'express';
 import { alunosRouter } from './routes/alunos';
 import { avaliacoesRouter } from './routes/avaliacoes';
 import { turmasRouter } from './routes/turmas';
+import { setupEmailDigestJob } from './jobs/emailDigestJob';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);
 const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+
+setupEmailDigestJob();
 
 app.use(
   cors({

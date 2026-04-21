@@ -67,7 +67,7 @@ export class AvaliacaoService {
       conceito,
     });
 
-    await this.emailQueueService.queue(result.avaliacao);
+    await this.emailQueueService.queue(result.avaliacao, turma.topico);
 
     return result;
   }
