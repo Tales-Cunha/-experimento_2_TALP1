@@ -5,8 +5,10 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ./server:/app:z
+      - ./shared:/shared:z
       - server_node_modules:/app/node_modules
       - data_volume:/data
+    command: sh -c "npm install && npm run dev"
     env_file:
       - .env
     ports:
@@ -19,6 +21,7 @@ services:
     volumes:
       - ./client:/app:z
       - client_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev"
     environment:
       VITE_API_URL: http://localhost:3001
     ports:
