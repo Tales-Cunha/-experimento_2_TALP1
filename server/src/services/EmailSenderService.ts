@@ -1,47 +1,86 @@
-import { Resend } from 'resend';
 import type { Aluno, EmailQueueEntry } from '../../../shared/types';
 import { promises as fs } from 'fs';
 import path from 'path';
+import * as https from 'https';
 
 export class EmailSenderService {
-  private readonly resend: Resend | null = null;
+  private readonly apiKey: string | undefined;
   private readonly emailFrom: string;
   private readonly isProduction: boolean;
   private readonly isTest: boolean;
 
   constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
+    this.isProduction = process.env.ENABLE_REAL_EMAIL === 'true';
     this.isTest = process.env.NODE_ENV === 'test';
     this.emailFrom = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
-
-    if (this.isProduction) {
-      const apiKey = process.env.RESEND_API_KEY;
-      if (!apiKey) {
-        console.warn('RESEND_API_KEY environment variable is missing. Email sending will be skipped even in production.');
-      } else {
-        this.resend = new Resend(apiKey);
-      }
-    }
+    this.apiKey = process.env.MAILEROO_API_KEY;
   }
 
   async sendDigest(aluno: Aluno, changes: EmailQueueEntry['changes']): Promise<void> {
     const subject = 'Suas avaliações foram atualizadas';
     const html = this.buildDigestHtml(aluno, changes);
 
-    if (this.isProduction && this.resend) {
-      try {
-        const { data, error } = await this.resend.emails.send({
-          from: this.emailFrom,
-          to: aluno.email,
-          subject,
-          html,
-        });
+    if (this.isProduction && this.apiKey) {
+      const payload = JSON.stringify({
+        from: {
+          address: this.emailFrom,
+          display_name: 'SAMS Portal',
+        },
+        to: {
+          address: aluno.email,
+          display_name: aluno.nome,
+        },
+        subject,
+        html,
+      });
 
-        if (error) {
-          console.error(`Resend API Error when sending to ${aluno.email}:`, error);
-        } else {
-          console.log(`Successfully sent email to ${aluno.email}. ID: ${data?.id}`);
-        }
+      const options = {
+        hostname: 'smtp.maileroo.com',
+        port: 443,
+        path: '/api/v2/emails',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          'X-API-Key': this.apiKey,
+        },
+        timeout: 10000,
+      };
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+              try {
+                const result = JSON.parse(data);
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300 && result.success) {
+                  console.log(`Successfully sent email to ${aluno.email} via Maileroo. ID: ${result.data?.reference_id}`);
+                  resolve();
+                } else {
+                  console.error(`Maileroo API Error when sending to ${aluno.email}:`, result);
+                  resolve();
+                }
+              } catch (e) {
+                console.error(`Failed to parse Maileroo response for ${aluno.email}:`, data);
+                resolve();
+              }
+            });
+          });
+
+          req.on('error', (error) => {
+            reject(error);
+          });
+
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Maileroo request timed out'));
+          });
+
+          req.write(payload);
+          req.end();
+        });
       } catch (error) {
         console.error(`Failed to send email to ${aluno.email}:`, error);
       }

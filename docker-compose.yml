@@ -27,6 +27,12 @@ services:
     ports:
       - "5173:5173"
 
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400
+
 volumes:
   client_node_modules:
   server_node_modules:

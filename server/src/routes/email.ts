@@ -5,8 +5,10 @@ import { EmailSenderService } from '../services/EmailSenderService';
 const emailRouter = Router();
 
 emailRouter.post('/send-digest', async (_request: Request, response: Response) => {
-  if (process.env.NODE_ENV !== 'test') {
-    response.status(403).json({ error: 'This endpoint is only available in test environment' });
+  const isAllowed = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development';
+  
+  if (!isAllowed) {
+    response.status(403).json({ error: 'This endpoint is only available in test or production environment' });
     return;
   }
 

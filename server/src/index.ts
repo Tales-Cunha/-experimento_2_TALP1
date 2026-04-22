@@ -1,11 +1,14 @@
 import cors from 'cors';
 import express from 'express';
+import dns from 'node:dns';
 
 import { alunosRouter } from './routes/alunos';
 import { avaliacoesRouter } from './routes/avaliacoes';
 import { turmasRouter } from './routes/turmas';
 import { emailRouter } from './routes/email';
 import { setupEmailDigestJob } from './jobs/emailDigestJob';
+
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);

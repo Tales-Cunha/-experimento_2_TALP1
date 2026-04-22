@@ -17,295 +17,243 @@ const emptyForm: TurmaFormState = {
 };
 
 export function TurmasPage() {
-  const { turmas, loading, error, createTurma, updateTurma, deleteTurma } = useTurmas();
+  const { turmas, loading, error, createTurma, deleteTurma } = useTurmas();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [editingTurmaId, setEditingTurmaId] = useState<string | null>(null);
   const [formState, setFormState] = useState<TurmaFormState>(emptyForm);
 
-  const isEditing = useMemo(() => editingTurmaId !== null, [editingTurmaId]);
-
-  function openCreateModal() {
-    setEditingTurmaId(null);
-    setFormError(null);
-    setFormState(emptyForm);
-    setIsModalOpen(true);
-  }
-
-  function openEditModal(turma: Turma) {
-    setEditingTurmaId(turma.id);
-    setFormError(null);
-    setFormState({
-      topico: turma.topico,
-      ano: String(turma.ano),
-      semestre: String(turma.semestre) as '1' | '2',
+  const sortedTurmas = useMemo(() => {
+    return [...turmas].sort((a, b) => {
+      if (a.ano !== b.ano) return b.ano - a.ano;
+      return b.semestre - a.semestre;
     });
-    setIsModalOpen(true);
-  }
+  }, [turmas]);
 
-  function closeModal() {
-    if (isSubmitting) {
-      return;
-    }
-
-    setIsModalOpen(false);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setFormError(null);
-  }
-
-  function updateField(field: keyof TurmaFormState, value: string) {
-    setFormState((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(null);
-
-    const ano = Number(formState.ano);
-
-    if (!formState.topico.trim()) {
-      setFormError('Preencha o tópico da turma.');
-      return;
-    }
-
-    if (!Number.isInteger(ano) || ano <= 0) {
-      setFormError('Informe um ano válido.');
-      return;
-    }
-
-    const semestre = Number(formState.semestre);
-    if (semestre !== 1 && semestre !== 2) {
-      setFormError('Semestre deve ser 1 ou 2.');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      if (isEditing && editingTurmaId) {
-        await updateTurma(editingTurmaId, {
-          topico: formState.topico.trim(),
-          ano,
-          semestre,
-        });
-      } else {
-        await createTurma({
-          topico: formState.topico.trim(),
-          ano,
-          semestre: semestre as 1 | 2,
-        });
-      }
-
+      await createTurma({
+        topico: formState.topico,
+        ano: parseInt(formState.ano, 10),
+        semestre: parseInt(formState.semestre, 10) as 1 | 2,
+      });
       setIsModalOpen(false);
-      setEditingTurmaId(null);
       setFormState(emptyForm);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Não foi possível salvar a turma.';
-      setFormError(message);
+      setFormError(err instanceof Error ? err.message : 'Falha ao salvar turma');
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleDelete(turma: Turma) {
-    const confirmed = window.confirm(
-      `Tem certeza que deseja excluir a turma ${turma.topico}? Esta ação não pode ser desfeita.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await deleteTurma(turma.id);
-    } catch {
-      // Error state is shown by the hook.
-    }
-  }
-
   return (
-    <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1.5rem',
-          gap: '1rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Turmas</h1>
-        <button type="button" onClick={openCreateModal}>
-          Nova Turma
+    <main style={{ padding: '4rem 2rem', maxWidth: '1400px', margin: '0 auto' }}>
+      <header style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-end',
+        borderBottom: '2px solid var(--ink)',
+        paddingBottom: '2rem',
+        marginBottom: '3rem'
+      }}>
+        <div>
+          <h1 style={{ fontSize: '5rem', lineHeight: 0.9, fontWeight: 900 }}>TURMAS</h1>
+          <p style={{ marginTop: '1rem', color: 'var(--ink)', opacity: 0.6, fontSize: '0.8rem' }}>
+            REGISTRO DE DISCIPLINAS E PERÍODOS ACADÊMICOS
+          </p>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          style={{
+            backgroundColor: 'var(--ink)',
+            color: 'var(--paper)',
+            padding: '1rem 2rem',
+            border: 'none',
+            fontSize: '0.8rem',
+            fontWeight: 'bold',
+            textTransform: 'uppercase',
+          }}
+        >
+          + Nova Turma
         </button>
       </header>
 
       {loading ? (
-        <div role="status" aria-live="polite" style={{ display: 'flex', gap: '0.5rem' }}>
-          <span
-            style={{
-              width: '1rem',
-              height: '1rem',
-              border: '2px solid #cccccc',
-              borderTopColor: '#333333',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span>Carregando turmas...</span>
-        </div>
+        <div style={{ padding: '4rem', textAlign: 'center' }}>Carregando dados...</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Tópico
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Ano
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Semestre
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Alunos Matriculados
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {turmas.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ padding: '0.75rem' }}>
-                    Nenhuma turma cadastrada.
-                  </td>
-                </tr>
-              ) : (
-                turmas.map((turma) => (
-                  <tr key={turma.id}>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      <Link to={`/turmas/${turma.id}`}>{turma.topico}</Link>
-                    </td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>{turma.ano}</td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      {turma.semestre}
-                    </td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      {turma.alunos.length}
-                    </td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="button" onClick={() => openEditModal(turma)}>
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => handleDelete(turma)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div 
+          className="staggered-reveal"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '1px',
+            backgroundColor: 'var(--grid-line)',
+            border: '1px solid var(--grid-line)',
+          }}
+        >
+          {sortedTurmas.map((turma, index) => (
+            <div
+              key={turma.id}
+              style={{
+                backgroundColor: 'var(--paper)',
+                padding: '2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '250px',
+                animationDelay: `${index * 0.05}s`,
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 'bold', backgroundColor: 'var(--ghost)', padding: '0.2rem 0.5rem' }}>
+                    {turma.ano}.{turma.semestre}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>ID: {turma.id.slice(0, 8)}</span>
+                </div>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>{turma.topico}</h2>
+                <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>{turma.alunos.length} ALUNOS MATRICULADOS</p>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <Link
+                  to={`/turmas/${turma.id}`}
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '0.75rem',
+                    border: '1px solid var(--ink)',
+                    textDecoration: 'none',
+                    color: 'var(--ink)',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Visualizar
+                </Link>
+                <button
+                  onClick={() => {
+                    if (confirm('Deseja realmente remover esta turma?')) {
+                      deleteTurma(turma.id).catch(err => alert(err.message));
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem',
+                    border: '1px solid var(--crimson)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--crimson)',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  DEL
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
-
-      {error && (
-        <p role="alert" style={{ color: '#b00020', marginTop: '1rem' }}>
-          Erro: {error}
-        </p>
       )}
 
       {isModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.45)',
-            display: 'grid',
-            placeItems: 'center',
-            padding: '1rem',
-          }}
-        >
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000,
+          backdropFilter: 'blur(4px)',
+        }}>
           <form
             onSubmit={handleSubmit}
             style={{
-              width: 'min(28rem, 100%)',
-              background: '#ffffff',
-              borderRadius: '0.5rem',
-              padding: '1rem',
-              display: 'grid',
-              gap: '0.75rem',
+              backgroundColor: 'var(--paper)',
+              padding: '3rem',
+              width: '100%',
+              maxWidth: '500px',
+              border: '2px solid var(--ink)',
             }}
           >
-            <h2 style={{ margin: 0 }}>{isEditing ? 'Editar Turma' : 'Nova Turma'}</h2>
+            <h2 style={{ marginBottom: '2rem', fontSize: '2rem' }}>NOVA TURMA</h2>
+            
+            {formError && <p style={{ color: 'var(--crimson)', marginBottom: '1rem', fontSize: '0.8rem' }}>{formError}</p>}
 
-            <label>
-              Tópico
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>TÓPICO / DISCIPLINA</label>
               <input
+                required
                 value={formState.topico}
-                onChange={(event) => updateField('topico', event.target.value)}
+                onChange={e => setFormState({ ...formState, topico: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  border: '1px solid var(--ink)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '1rem',
+                }}
                 placeholder="Ex: Engenharia de Software"
-                required
-                style={{ width: '100%' }}
               />
-            </label>
+            </div>
 
-            <label>
-              Ano
-              <input
-                type="number"
-                min={1}
-                value={formState.ano}
-                onChange={(event) => updateField('ano', event.target.value)}
-                placeholder="2026"
-                required
-                style={{ width: '100%' }}
-              />
-            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>ANO</label>
+                <input
+                  required
+                  type="number"
+                  value={formState.ano}
+                  onChange={e => setFormState({ ...formState, ano: e.target.value })}
+                  style={{ width: '100%', padding: '1rem', border: '1px solid var(--ink)', fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>SEMESTRE</label>
+                <select
+                  value={formState.semestre}
+                  onChange={e => setFormState({ ...formState, semestre: e.target.value as '1' | '2' })}
+                  style={{ width: '100%', padding: '1rem', border: '1px solid var(--ink)', fontFamily: 'var(--font-mono)' }}
+                >
+                  <option value="1">1º Semestre</option>
+                  <option value="2">2º Semestre</option>
+                </select>
+              </div>
+            </div>
 
-            <label>
-              Semestre
-              <select
-                value={formState.semestre}
-                onChange={(event) => updateField('semestre', event.target.value)}
-                style={{ width: '100%' }}
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                style={{ flex: 1, padding: '1rem', border: '1px solid var(--ink)', backgroundColor: 'transparent' }}
               >
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
-            </label>
-
-            {formError && (
-              <p role="alert" style={{ margin: 0, color: '#b00020' }}>
-                {formError}
-              </p>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={closeModal} disabled={isSubmitting}>
-                Cancelar
+                CANCELAR
               </button>
-              <button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Salvando...' : 'Salvar'}
+              <button
+                disabled={isSubmitting}
+                style={{
+                  flex: 1,
+                  padding: '1rem',
+                  backgroundColor: 'var(--ink)',
+                  color: 'var(--paper)',
+                  border: 'none',
+                  fontWeight: 'bold',
+                }}
+              >
+                {isSubmitting ? 'SALVANDO...' : 'CRIAR TURMA'}
               </button>
             </div>
           </form>
         </div>
       )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </main>
   );
 }

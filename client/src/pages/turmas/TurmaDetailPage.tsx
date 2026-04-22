@@ -6,10 +6,10 @@ import { useTurmas } from '../../hooks/useTurmas';
 import type { Avaliacao, Conceito } from '../../services/avaliacoesApi';
 import type { AlunoResumo, Turma } from '../../services/turmasApi';
 
-const conceitoColor: Record<Conceito, string> = {
-  MANA: '#fde8e8',
-  MPA: '#fff9db',
-  MA: '#e6f7e6',
+const conceitoColors = {
+  MA: 'var(--emerald)',
+  MPA: 'var(--amber)',
+  MANA: 'var(--crimson)',
 };
 
 export function TurmaDetailPage() {
@@ -94,295 +94,219 @@ export function TurmaDetailPage() {
   }
 
   const alunosDisponiveis = useMemo(() => {
-    if (!turma) {
-      return [];
-    }
+    if (!turma) return [];
+    return todosAlunos.filter(aluno => !turma.alunosIds.includes(aluno.id));
+  }, [todosAlunos, turma]);
 
-    const idsMatriculados = new Set(turma.alunos.map((aluno) => aluno.id));
-    return todosAlunos.filter((aluno) => !idsMatriculados.has(aluno.id));
-  }, [turma, todosAlunos]);
-
-  async function handleMatricular() {
-    if (!id || !selectedAlunoId) {
-      return;
-    }
+  async function handleEnroll(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !selectedAlunoId) return;
 
     setSubmitting(true);
     setLocalError(null);
-
     try {
-      const turmaAtualizada = await enrollAluno(id, selectedAlunoId);
-      setTurma(turmaAtualizada);
+      const updated = await enrollAluno(id, selectedAlunoId);
+      setTurma(updated);
       setSelectedAlunoId('');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Falha ao matricular aluno.';
-      setLocalError(message);
+      setLocalError(err instanceof Error ? err.message : 'Erro ao matricular aluno.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleRemoverAluno(aluno: AlunoResumo) {
-    if (!id) {
-      return;
-    }
+  async function handleRemove(alunoId: string) {
+    if (!id) return;
 
-    const confirmed = window.confirm(
-      `Remover ${aluno.nome} da turma ${turma?.topico ?? ''}?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setSubmitting(true);
     setLocalError(null);
-
     try {
-      const turmaAtualizada = await removeAluno(id, aluno.id);
-      setTurma(turmaAtualizada);
+      const updated = await removeAluno(id, alunoId);
+      setTurma(updated);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Falha ao remover aluno da turma.';
-      setLocalError(message);
-    } finally {
-      setSubmitting(false);
+      setLocalError(err instanceof Error ? err.message : 'Erro ao remover aluno.');
     }
   }
 
-  if (loading) {
-    return (
-      <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-        <p>Carregando detalhes da turma...</p>
-      </main>
-    );
+  if (loading && !turma) {
+    return <main style={{ padding: '4rem', textAlign: 'center' }}>Sincronizando ambiente...</main>;
   }
 
   if (!turma) {
-    return (
-      <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-        <p>Turma não encontrada.</p>
-        <Link to="/turmas">Voltar para turmas</Link>
-      </main>
-    );
+    return <main style={{ padding: '4rem', textAlign: 'center' }}>Turma não encontrada.</main>;
   }
 
   return (
-    <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '1.5rem', display: 'grid', gap: '0.25rem' }}>
-        <button type="button" onClick={() => navigate('/turmas')} style={{ width: 'fit-content' }}>
-          Voltar para Turmas
-        </button>
-        <h1 style={{ margin: 0 }}>{turma.topico}</h1>
-        <p style={{ margin: 0 }}>
-          Ano: {turma.ano} | Semestre: {turma.semestre}
-        </p>
-        <p style={{ margin: 0 }}>Total de matriculados: {turma.alunos.length}</p>
+    <main style={{ padding: '4rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
+      <header style={{ 
+        borderBottom: '2px solid var(--ink)',
+        paddingBottom: '2rem',
+        marginBottom: '4rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end'
+      }}>
+        <div style={{ flex: 1 }}>
+          <Link to="/turmas" style={{ fontSize: '0.7rem', color: 'var(--ink)', textDecoration: 'none', fontWeight: 'bold' }}>
+            ← VOLTAR PARA LISTA
+          </Link>
+          <h1 style={{ fontSize: '5rem', lineHeight: 0.9, fontWeight: 900, marginTop: '1rem' }}>{turma.topico.toUpperCase()}</h1>
+          <div style={{ display: 'flex', gap: '2rem', marginTop: '1.5rem' }}>
+            <div style={{ backgroundColor: 'var(--ink)', color: 'var(--paper)', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              PERÍODO: {turma.ano}.{turma.semestre}
+            </div>
+            <div style={{ border: '1px solid var(--ink)', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              REF: {turma.id.slice(0, 8)}
+            </div>
+          </div>
+        </div>
       </header>
 
-      <section
-        style={{
-          marginBottom: '1.5rem',
-          padding: '1rem',
-          border: '1px solid #dddddd',
-          borderRadius: '0.5rem',
-          display: 'grid',
-          gap: '0.75rem',
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Adicionar Aluno</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '4rem', alignItems: 'start' }}>
+        <aside>
+          <section style={{ border: '2px solid var(--ink)', padding: '2rem', backgroundColor: 'var(--ghost)' }}>
+            <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--ink)', paddingBottom: '0.5rem' }}>MATRÍCULA</h2>
+            
+            <form onSubmit={handleEnroll}>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>SELECIONAR ALUNO</label>
+              <select
+                value={selectedAlunoId}
+                onChange={e => setSelectedAlunoId(e.target.value)}
+                disabled={submitting || alunosDisponiveis.length === 0}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  border: '1px solid var(--ink)',
+                  fontFamily: 'var(--font-mono)',
+                  marginBottom: '1rem',
+                  backgroundColor: 'var(--paper)'
+                }}
+              >
+                <option value="">{alunosDisponiveis.length === 0 ? 'Nenhum aluno disponível' : 'Selecione...'}</option>
+                {alunosDisponiveis.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              </select>
+              <button
+                disabled={submitting || !selectedAlunoId}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  backgroundColor: 'var(--ink)',
+                  color: 'var(--paper)',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  fontSize: '0.8rem'
+                }}
+              >
+                {submitting ? 'MATRICULANDO...' : 'EFETIVAR MATRÍCULA'}
+              </button>
+            </form>
 
-        {alunosDisponiveis.length === 0 ? (
-          <p style={{ margin: 0 }}>Todos os alunos já estão matriculados nesta turma.</p>
-        ) : (
-          <>
-            <select
-              value={selectedAlunoId}
-              onChange={(event) => setSelectedAlunoId(event.target.value)}
-              disabled={submitting}
-              style={{ maxWidth: '28rem' }}
-            >
-              <option value="">Selecione um aluno</option>
-              {alunosDisponiveis.map((aluno) => (
-                <option key={aluno.id} value={aluno.id}>
-                  {aluno.nome} ({aluno.cpf})
-                </option>
-              ))}
-            </select>
+            <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px dashed var(--grid-line)' }}>
+              <Link to="/alunos" style={{ fontSize: '0.7rem', color: 'var(--ink)', fontWeight: 'bold' }}>
+                + CRIAR NOVO REGISTRO DE ALUNO
+              </Link>
+            </div>
+          </section>
 
-            <button
-              type="button"
-              onClick={() => {
-                void handleMatricular();
-              }}
-              disabled={!selectedAlunoId || submitting}
-              style={{ width: 'fit-content' }}
-            >
-              {submitting ? 'Processando...' : 'Matricular Aluno'}
-            </button>
-          </>
-        )}
-      </section>
+          {(localError || error || avaliacaoError) && (
+            <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid var(--crimson)', color: 'var(--crimson)', fontSize: '0.7rem' }}>
+              ALERTA: {localError ?? error ?? avaliacaoError}
+            </div>
+          )}
+        </aside>
 
-      <section>
-        <h2 style={{ marginTop: 0 }}>Alunos Matriculados</h2>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Nome
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  CPF
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  E-mail
-                </th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {turma.alunos.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ padding: '0.75rem' }}>
-                    Nenhum aluno matriculado nesta turma.
-                  </td>
+        <section>
+          <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>QUADRO DE AVALIAÇÕES</h2>
+          <div style={{ overflowX: 'auto', border: '1px solid var(--ink)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--ghost)' }}>
+                  <th style={{ padding: '1.2rem', textAlign: 'left', borderBottom: '2px solid var(--ink)', borderRight: '1px solid var(--ink)', fontSize: '0.7rem' }}>ALUNO</th>
+                  {METAS.map(meta => (
+                    <th key={meta} style={{ padding: '1.2rem', borderBottom: '2px solid var(--ink)', borderRight: '1px solid var(--grid-line)', fontSize: '0.7rem' }}>
+                      {meta.toUpperCase()}
+                    </th>
+                  ))}
+                  <th style={{ borderBottom: '2px solid var(--ink)' }}></th>
                 </tr>
-              ) : (
-                turma.alunos.map((aluno) => (
-                  <tr key={aluno.id}>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>{aluno.nome}</td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>{aluno.cpf}</td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>{aluno.email}</td>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() => {
-                          void handleRemoverAluno(aluno);
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody className="staggered-reveal">
+                {turma.alunos.length === 0 ? (
+                  <tr><td colSpan={METAS.length + 2} style={{ padding: '4rem', textAlign: 'center', opacity: 0.3 }}>NENHUM ALUNO MATRICULADO</td></tr>
+                ) : (
+                  turma.alunos.map((aluno, index) => (
+                    <tr key={aluno.id} style={{ borderBottom: '1px solid var(--grid-line)', animationDelay: `${index * 0.03}s` }}>
+                      <td style={{ padding: '1rem 1.2rem', borderRight: '1px solid var(--ink)', backgroundColor: 'var(--paper)' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>{aluno.nome.toUpperCase()}</div>
+                        <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>{aluno.cpf}</div>
+                      </td>
+                      {METAS.map(meta => {
+                        const conceito = getConceito(aluno.id, meta);
+                        const cellKey = `${aluno.id}::${meta}`;
+                        const isEditing = editingCell === cellKey;
 
-      <section style={{ marginTop: '1.5rem' }}>
-        <h2 style={{ marginTop: 0 }}>Tabela de Avaliações da Turma</h2>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '52rem' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}>
-                  Aluno
-                </th>
-                {METAS.map((meta) => (
-                  <th
-                    key={meta}
-                    style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '0.5rem' }}
-                  >
-                    {meta}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {turma.alunos.length === 0 ? (
-                <tr>
-                  <td colSpan={1 + METAS.length} style={{ padding: '0.75rem' }}>
-                    Nenhum aluno matriculado nesta turma.
-                  </td>
-                </tr>
-              ) : (
-                turma.alunos.map((aluno) => (
-                  <tr key={aluno.id}>
-                    <td style={{ padding: '0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                      <div style={{ display: 'grid' }}>
-                        <strong>{aluno.nome}</strong>
-                        <small>{aluno.cpf}</small>
-                      </div>
-                    </td>
-                    {METAS.map((meta) => {
-                      const conceito = getConceito(aluno.id, meta);
-                      const cellKey = `${aluno.id}::${meta}`;
-                      const isEditing = editingCell === cellKey;
-
-                      return (
-                        <td
-                          key={cellKey}
-                          style={{
-                            padding: '0.5rem',
-                            borderBottom: '1px solid #f0f0f0',
-                            backgroundColor: conceito ? conceitoColor[conceito] : '#ffffff',
-                          }}
-                        >
-                          {isEditing ? (
-                            <select
-                              autoFocus
-                              defaultValue={conceito ?? ''}
-                              onBlur={() => setEditingCell(null)}
-                              onChange={(event) => {
-                                const value = event.target.value as Conceito | '';
-                                if (value) {
-                                  void handleSetConceito(aluno.id, meta, value);
-                                } else {
+                        return (
+                          <td key={cellKey} style={{ 
+                            padding: '0.4rem', 
+                            textAlign: 'center', 
+                            borderRight: '1px solid var(--grid-line)',
+                            backgroundColor: conceito ? `${conceitoColors[conceito]}15` : 'transparent'
+                          }}>
+                            {isEditing ? (
+                              <select
+                                autoFocus
+                                defaultValue={conceito ?? ''}
+                                onBlur={() => setEditingCell(null)}
+                                onChange={e => {
+                                  const val = e.target.value as Conceito;
+                                  if (val) void handleSetConceito(aluno.id, meta, val);
                                   setEditingCell(null);
-                                }
-                              }}
-                              disabled={savingAvaliacao}
-                            >
-                              <option value="">Selecione</option>
-                              {['MANA', 'MPA', 'MA'].map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setEditingCell(cellKey)}
-                              style={{
-                                border: 'none',
-                                background: 'transparent',
-                                padding: 0,
-                                cursor: 'pointer',
-                                font: 'inherit',
-                                width: '100%',
-                                textAlign: 'left',
-                                height: '1.5rem'
-                              }}
-                              title="Clique para editar"
-                            >
-                              {conceito ?? '—'}
-                            </button>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {(localError || error || avaliacaoError) && (
-        <p role="alert" style={{ color: '#b00020', marginTop: '1rem' }}>
-          Erro: {localError ?? error ?? avaliacaoError}
-        </p>
-      )}
+                                }}
+                                style={{ 
+                                  width: '100%', 
+                                  fontFamily: 'var(--font-mono)', 
+                                  fontSize: '0.7rem',
+                                  padding: '0.2rem',
+                                  border: '1px solid var(--ink)'
+                                }}
+                              >
+                                <option value="">-</option>
+                                {['MANA', 'MPA', 'MA'].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            ) : (
+                              <button
+                                onClick={() => setEditingCell(cellKey)}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  width: '100%',
+                                  height: '2.5rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 'bold',
+                                  color: conceito ? conceitoColors[conceito] : 'var(--grid-line)'
+                                }}
+                              >
+                                {conceito ?? '---'}
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td style={{ textAlign: 'center', padding: '0 1rem' }}>
+                        <button
+                          onClick={() => { if (confirm('Remover aluno da turma?')) void handleRemove(aluno.id); }}
+                          style={{ border: 'none', background: 'transparent', color: 'var(--crimson)', fontSize: '0.6rem', fontWeight: 'bold' }}
+                        >
+                          EXCLUIR
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
