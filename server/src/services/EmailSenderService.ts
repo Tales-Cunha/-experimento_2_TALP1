@@ -1,13 +1,17 @@
 import { Resend } from 'resend';
 import type { Aluno, EmailQueueEntry } from '../../../shared/types';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 export class EmailSenderService {
   private readonly resend: Resend | null = null;
   private readonly emailFrom: string;
   private readonly isProduction: boolean;
+  private readonly isTest: boolean;
 
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
+    this.isTest = process.env.NODE_ENV === 'test';
     this.emailFrom = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
 
     if (this.isProduction) {
@@ -42,6 +46,28 @@ export class EmailSenderService {
         console.error(`Failed to send email to ${aluno.email}:`, error);
       }
     } else {
+      if (this.isTest) {
+        const dataDir = process.env.DATA_DIR || '/data';
+        const filePath = path.join(dataDir, 'sentEmails.json');
+        
+        let sentEmails = [];
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          sentEmails = JSON.parse(content);
+        } catch {
+          // File might not exist or be empty
+        }
+
+        sentEmails.push({
+          to: aluno.email,
+          subject,
+          html,
+          timestamp: new Date().toISOString()
+        });
+
+        await fs.writeFile(filePath, JSON.stringify(sentEmails, null, 2), 'utf-8');
+      }
+
       console.log('--- Email Digest (Simulation) ---');
       console.log(`To: ${aluno.nome} <${aluno.email}>`);
       console.log(`From: ${this.emailFrom}`);

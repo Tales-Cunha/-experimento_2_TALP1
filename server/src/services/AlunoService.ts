@@ -20,6 +20,13 @@ interface UpdateAlunoInput {
 export class AlunoService {
   constructor(private readonly alunoRepository: AlunoRepository = new AlunoRepository()) {}
 
+  private assertValidEmail(email: string): void {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new ValidationError('Invalid email format');
+    }
+  }
+
   async findAll(): Promise<Aluno[]> {
     return this.alunoRepository.findAll();
   }
@@ -28,6 +35,7 @@ export class AlunoService {
     this.assertRequiredText(input.nome, 'nome');
     this.assertRequiredText(input.cpf, 'cpf');
     this.assertRequiredText(input.email, 'email');
+    this.assertValidEmail(input.email);
 
     const cpfValidation = validateCpf(input.cpf);
 
@@ -67,6 +75,7 @@ export class AlunoService {
 
     if (input.email !== undefined) {
       this.assertRequiredText(input.email, 'email');
+      this.assertValidEmail(input.email);
       updateData.email = input.email.trim();
     }
 

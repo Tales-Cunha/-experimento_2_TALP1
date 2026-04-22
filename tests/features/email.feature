@@ -1,46 +1,39 @@
-# language: en
-Feature: Email Notifications for Assessments
-  As a student
-  I want to receive a daily digest of my assessment changes
-  So that I am kept informed without being overwhelmed by multiple emails
+# language: pt
 
-  Background:
-    Given a student "João Silva" with email "joao@example.com" exists
-    And a class "Engenharia de Software" exists
-    And the student "João Silva" is enrolled in "Engenharia de Software"
+Funcionalidade: Fila de Email e Envio Diário
 
-  Scenario: Saving an assessment adds an entry to the email queue
-    When I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MA"
-    Then the email queue should contain an entry for "João Silva" regarding "Requisitos" in "Engenharia de Software"
+  Cenário: Adicionar avaliação na fila e enviar email limpa a fila
+    Dado o professor definiu avaliações para o aluno "577.049.488-30" hoje
+    Quando o professor define a avaliação de "577.049.488-30" na meta "Requisitos" como "MA"
+    Entao deve existir exatamente 1 entrada na fila de email para o aluno "577.049.488-30"
+    Quando o job de envio de email diário é executado
+    Entao o aluno "577.049.488-30" deve ter recebido exatamente 1 email
+    E o email deve conter a avaliação da meta "Requisitos" com conceito "MA"
+    E a fila de email deve estar vazia para o aluno "577.049.488-30"
 
-  Scenario: Saving the same assessment twice replaces the entry
-    Given I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MANA"
-    When I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MA"
-    Then the email queue should contain only one entry for "João Silva" regarding "Requisitos" in "Engenharia de Software"
-    And that entry should have the concept "MA"
+  Cenário: Atualizar a avaliação substitui o conceito na fila e não duplica
+    Dado o professor definiu avaliações para o aluno "255.145.739-40" hoje
+    Quando o professor define a avaliação de "255.145.739-40" na meta "Testes" como "MPA"
+    E o professor atualiza a mesma avaliação para "MA"
+    Entao deve existir exatamente 1 entrada na fila de email para o aluno "255.145.739-40"
+    Quando o job de envio de email diário é executado
+    Entao o aluno "255.145.739-40" deve ter recebido exatamente 1 email
+    E o email deve conter a avaliação da meta "Testes" com conceito "MA"
+    E a fila de email deve estar vazia para o aluno "255.145.739-40"
 
-  Scenario: Daily digest sends one email per student with all changes
-    Given I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MA"
-    And I save an assessment for "João Silva" in "Engenharia de Software" for "Testes" with concept "MPA"
-    When the daily digest runs
-    Then one email should be sent to "joao@example.com"
-    And the email should contain the assessment for "Requisitos"
-    And the email should contain the assessment for "Testes"
-    And the email queue for today should be cleared
+  Cenário: Aluno matriculado em 3 turmas recebe um único email
+    Dado o professor definiu avaliações para o aluno "872.528.809-15" em 3 turmas hoje
+    Quando o professor define a avaliação de "872.528.809-15" na turma 1 meta "Requisitos" como "MA"
+    E o professor define a avaliação de "872.528.809-15" na turma 2 meta "Testes" como "MPA"
+    E o professor define a avaliação de "872.528.809-15" na turma 3 meta "Implementação" como "MANA"
+    Entao deve existir exatamente 1 entrada na fila de email para o aluno "872.528.809-15"
+    Quando o job de envio de email diário é executado
+    Entao o aluno "872.528.809-15" deve ter recebido exatamente 1 email
+    E o email deve conter a avaliação da meta "Requisitos" com conceito "MA"
+    E o email deve conter a avaliação da meta "Testes" com conceito "MPA"
+    E o email deve conter a avaliação da meta "Implementação" com conceito "MANA"
 
-  Scenario: Student in two classes receives one consolidated email
-    Given a class "Programação 1" exists
-    And the student "João Silva" is enrolled in "Programação 1"
-    And I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MA"
-    And I save an assessment for "João Silva" in "Programação 1" for "Implementação" with concept "MANA"
-    When the daily digest runs
-    Then one email should be sent to "joao@example.com"
-    And the email should contain the "Engenharia de Software" assessment
-    And the email should contain the "Programação 1" assessment
-
-  Scenario: Email content is logged to console in development mode
-    Given the system is running in "development" mode
-    And I save an assessment for "João Silva" in "Engenharia de Software" for "Requisitos" with concept "MA"
-    When the daily digest runs
-    Then no real email should be sent
-    And the email content for "João Silva" should be logged to the console
+  Cenário: Nenhum email é enviado se não houve avaliações no dia
+    Dado nenhum aluno foi avaliado hoje
+    Quando o job de envio de email diário é executado
+    Entao o aluno "518.082.544-06" deve ter recebido exatamente 0 email

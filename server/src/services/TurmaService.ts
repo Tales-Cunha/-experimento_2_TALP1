@@ -106,6 +106,14 @@ export class TurmaService {
   }
 
   async delete(id: string): Promise<void> {
+    const existingTurma = await this.turmaRepository.findById(id);
+    if (!existingTurma) {
+      throw new NotFoundError('Class not found');
+    }
+    if (existingTurma.alunosIds.length > 0) {
+      throw new ValidationError('Cannot delete a class with enrolled students');
+    }
+
     const wasDeleted = await this.turmaRepository.delete(id);
 
     if (!wasDeleted) {

@@ -8,7 +8,7 @@ Before(async function () {
     throw new Error('DATA_DIR environment variable is not set');
   }
 
-  const files = ['alunos.json', 'turmas.json', 'avaliacoes.json', 'emailQueue.json'];
+  const files = ['alunos.json', 'turmas.json', 'avaliacoes.json', 'emailQueue.json', 'sentEmails.json'];
   
   for (const file of files) {
     const filePath = path.join(dataDir, file);

@@ -4,6 +4,7 @@ import express from 'express';
 import { alunosRouter } from './routes/alunos';
 import { avaliacoesRouter } from './routes/avaliacoes';
 import { turmasRouter } from './routes/turmas';
+import { emailRouter } from './routes/email';
 import { setupEmailDigestJob } from './jobs/emailDigestJob';
 
 const app = express();
@@ -27,6 +28,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/alunos', alunosRouter);
 app.use('/api/turmas', turmasRouter);
+app.use('/api/email', emailRouter);
 app.use('/api', avaliacoesRouter);
 
 app.listen(port, '0.0.0.0', () => {
